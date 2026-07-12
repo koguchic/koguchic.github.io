@@ -1,0 +1,56 @@
+---
+title: 'A Reading Path from DQN to World-Model Foundation Agents'
+description: 'A sequenced literature review for training classic RL and world-model algorithms on Atari — nine tracks, ordered so each one earns the next, with an interactive read-tracker.'
+pubDate: 2026-07-11
+tags: ['reinforcement-learning', 'world-models', 'jepa', 'reading-list']
+---
+
+import ReadingTracker from '../../components/ReadingTracker.tsx';
+
+I want to train classic RL and world-model algorithms locally on Atari, and before writing a
+line of code I wanted the *map* of the field — not a pile of links, but a route. This is that
+route: nine tracks, ordered so each one earns the next, from the DQN that started it all to the
+generalist "foundation model for games" frontier.
+
+## Why Atari, and why the 100k regime
+
+The classic Atari benchmark runs agents for **200 million** frames. The sample-efficient
+variant, **Atari-100k**, gives the agent only 100,000 steps — about two hours of play. That
+500× difference is what makes this tractable on a laptop, and it's where world models earn their
+keep.
+
+Everything is scored by the **human-normalized score**, which places an agent between random
+play and a human expert:
+
+$$
+\text{HNS} = \frac{s_{\text{agent}} - s_{\text{random}}}{s_{\text{human}} - s_{\text{random}}}
+$$
+
+so $\text{HNS} = 1$ means human-level on that game. The quantity every algorithm below is
+ultimately trying to maximize is the expected discounted return,
+
+$$
+G_t = \sum_{k=0}^{\infty} \gamma^k\, r_{t+k}, \qquad \gamma \in [0, 1),
+$$
+
+and the entire value-based tradition (Track 01) is built on approximating its expectation with a
+neural network $Q_\theta(s, a) \approx \mathbb{E}[G_t \mid s_t = s,\, a_t = a]$.
+
+## How to read this
+
+Go top to bottom for the full arc, or hit **Essentials** to collapse to the critical path for a
+first pass. Tracks 00–02 are the RL fundamentals and a working toolchain; 03–05 are the
+world-model core; 06 is what makes Atari-100k tractable; 07–08 are the JEPA and
+generalist-agent frontier where the open questions live. **Your progress saves in this browser** —
+check papers off as you go.
+
+<ReadingTracker client:load />
+
+## Where I think the gap is
+
+Track 07 is the one I keep circling. The dominant Atari-100k world models (Dreamer, IRIS,
+DIAMOND) are all **reconstructive** — they predict pixels or image tokens. JEPA's thesis is that
+you should predict in *latent* space instead. That idea is well-proven for representation
+learning and robotics, but its application to Atari RL is still wide open. *"Does a proper JEPA
+world model beat reconstruction-based ones on Atari-100k?"* is not yet settled — which is exactly
+the kind of question a laptop-scale benchmark lets you actually chase.

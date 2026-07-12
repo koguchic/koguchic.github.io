@@ -1,0 +1,43 @@
+---
+import { getCollection } from 'astro:content';
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+const posts = (await getCollection('blog'))
+  .filter((p) => !p.data.draft)
+  .sort((a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime());
+
+const fmt = (d: Date) =>
+  d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+---
+
+<BaseLayout title="Christian Koguchi — ML field notes">
+  <div class="container container--wide">
+    <section class="home-hero">
+      <p class="eyebrow">Machine learning, in public</p>
+      <h1>Learning ML the hard way — one paper at a time<span class="cursor"></span></h1>
+      <p>
+        Notes, reading maps, and experiments as I work through reinforcement learning, world
+        models, and everything I get curious about along the way. Written mostly to think, and to
+        keep myself honest about what I actually understand.
+      </p>
+    </section>
+
+    <section class="posts">
+      <div class="posts__label">Writing · {posts.length} {posts.length === 1 ? 'post' : 'posts'}</div>
+      {
+        posts.map((post) => (
+          <a class="post-card" href={`/blog/${post.id}/`}>
+            <div class="post-card__date">{fmt(post.data.pubDate)}</div>
+            <h2 class="post-card__title">{post.data.title}</h2>
+            <p class="post-card__desc">{post.data.description}</p>
+            <div class="tag-row">
+              {post.data.tags.map((tag) => (
+                <span class="tag">{tag}</span>
+              ))}
+            </div>
+          </a>
+        ))
+      }
+    </section>
+  </div>
+</BaseLayout>

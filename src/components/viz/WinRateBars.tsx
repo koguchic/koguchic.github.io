@@ -54,7 +54,7 @@ export default function WinRateBars({
               <span>
                 {r.label}
                 {r.note && (
-                  <span style={{ color: 'var(--muted)', fontWeight: 400 }}> — {r.note}</span>
+                  <span style={{ color: 'var(--muted)', fontWeight: 400 }}> · {r.note}</span>
                 )}
               </span>
               <span className="mono" style={{ color: 'var(--good)' }}>{Math.round(r.win)}% win</span>

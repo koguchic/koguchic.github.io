@@ -25,7 +25,7 @@ export default function CollapseToggle() {
 
   return (
     <figure className="fig">
-      <div className="fig-title">Representation collapse — the trap</div>
+      <div className="fig-title">Representation collapse: the trap</div>
       <div className="fig-sub">
         Toggle the anti-collapse regularizer. Watch the loss get <em>better</em> while the representation dies.
       </div>
@@ -69,7 +69,7 @@ export default function CollapseToggle() {
 
       <div className="callout" style={{ marginBottom: 0, marginTop: '1.1rem' }}>
         With the regularizer <b>off</b>, the encoder maps every board to the <em>same point</em>.
-        "Predict the next latent" becomes trivial, so the loss drops to <span className="mono">0.000</span> —
+        "Predict the next latent" becomes trivial, so the loss drops to <span className="mono">0.000</span>:
         a metric that looks <em>perfect</em> while the representation (R² ≈ 0) is worthless. A Q-table
         has no failure mode like this.
       </div>

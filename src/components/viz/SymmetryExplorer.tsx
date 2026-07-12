@@ -39,7 +39,7 @@ export default function SymmetryExplorer() {
       <div className="fig-title">Value is invariant; the best move is equivariant</div>
       <div className="fig-sub">
         Rotate or reflect the board. The <b style={{ color: 'var(--good)' }}>value</b> never
-        moves — but the <b style={{ color: 'var(--accent)' }}>optimal move</b> spins with it.
+        moves, but the <b style={{ color: 'var(--accent)' }}>optimal move</b> spins with it.
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '1.5rem', alignItems: 'center' }}>

@@ -33,7 +33,7 @@ export default function CapacitySweep() {
     <figure className="fig">
       <div className="fig-title">Was it the world model, or the controller?</div>
       <div className="fig-sub">
-        Drag the slider. Everything is the <em>same</em> frozen JEPA latent — only the piece you vary changes.
+        Drag the slider. Everything is the <em>same</em> frozen JEPA latent; only the piece you vary changes.
       </div>
 
       <div style={{ display: 'flex', gap: '.4rem', marginBottom: '1.1rem', fontFamily: 'var(--sans)', fontSize: '.8rem' }}>

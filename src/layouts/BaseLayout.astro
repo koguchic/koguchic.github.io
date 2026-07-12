@@ -5,7 +5,7 @@ interface Props {
   title: string;
   description?: string;
 }
-const { title, description = 'Field notes on reinforcement learning, world models, and the papers behind them.' } = Astro.props;
+const { title, description = 'Notes, reading maps, and experiments from learning machine learning, wherever it leads.' } = Astro.props;
 const year = new Date().getFullYear();
 ---
 
@@ -35,7 +35,7 @@ const year = new Date().getFullYear();
     <header class="site-header">
       <div class="site-header__inner">
         <a class="wordmark" href="/">
-          <span class="prompt">&gt;_</span> koguchi.dev
+          <span class="prompt">&gt;_</span> Christian Koguchi
         </a>
         <nav class="site-nav">
           <a href="/">Writing</a>

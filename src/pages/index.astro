@@ -8,9 +8,8 @@ const posts = (await getCollection('blog'))
 
 // Section order + copy. New kinds slot in here.
 const SECTIONS = [
-  { kind: 'essay', label: 'Essays', blurb: 'Deep-dives and interactive write-ups.' },
+  { kind: 'essay', label: 'Blog', blurb: 'Deep-dives and interactive write-ups.' },
   { kind: 'reading-list', label: 'Reading maps', blurb: 'Curated, trackable paths through a literature.' },
-  { kind: 'project', label: 'Projects', blurb: 'Experiments and things I built.' },
 ] as const;
 
 const allTags = [...new Set(posts.flatMap((p) => p.data.tags))].sort();

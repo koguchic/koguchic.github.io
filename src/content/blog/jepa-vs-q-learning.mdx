@@ -1,0 +1,389 @@
+---
+title: "What a world model actually does, watched on a game we can solve"
+description: "Most of what we believe about deep RL methods comes from problems too big to see into. Tic-Tac-Toe is small enough to check. So I ran a JEPA world model on it, graded every step against the exact answer, and watched what the machinery was really doing."
+pubDate: 2026-07-11
+kind: "essay"
+tags: ["reinforcement-learning", "world-models", "jepa"]
+---
+
+import WinRateBars from '../../components/viz/WinRateBars.tsx';
+import CapacitySweep from '../../components/viz/CapacitySweep.tsx';
+import CollapseToggle from '../../components/viz/CollapseToggle.tsx';
+import SymmetryExplorer from '../../components/viz/SymmetryExplorer.tsx';
+import DeadlyTriad from '../../components/viz/DeadlyTriad.tsx';
+import LatentOrbit from '../../components/viz/LatentOrbit.tsx';
+
+Most of what we believe about machine learning methods, we believe on faith. We run a
+world model on Atari, it scores well, and we tell a story about why it worked. The
+trouble is that we can't check the story, because on a hard problem we don't know the
+right answer. We only know the score.
+
+Tic-Tac-Toe is the opposite kind of problem. It is small enough that we can compute
+the exact value of every position and the perfect move in every situation, by hand, in
+a few lines of code. That makes it a strange but honest laboratory. Whatever a method
+does here, we can hold its output up against the truth and see precisely where it
+agrees and where it doesn't.
+
+So I did something that sounds a little absurd on purpose. I took a world model, and a
+particular modern kind called a JEPA, and I pointed it at Tic-Tac-Toe. Not because it
+is a good way to play the game. It obviously isn't. I did it because when the answer is
+knowable, you can watch exactly what the method is and isn't doing, and that turns out
+to teach you more than another leaderboard number ever could. This is what I found,
+built from scratch and checked at every step against an exact solver.
+
+## A game we can actually check
+
+Let me set up the world plainly, because everything later depends on it.
+
+We play X and move first. After each of our moves, an opponent replies. Our opponent is
+deliberately weak: if we are one move from winning it blocks us, and otherwise it plays
+at random. It never builds its own threats. The only reward comes at the very end of a
+game: $+1$ if we win, $0$ for a draw, $-1$ if we lose. Nothing in between.
+
+That reward structure is the whole difficulty. We are never told that the center is
+good, or that corners are strong, or what a fork is. We only find out, at the end,
+whether the sequence of moves worked. The agent has to figure out which early moves
+deserve credit for a win that arrives five moves later. And the one idea it needs to
+discover is the **fork**: a move that creates two threats at once. Our opponent can
+only block one of them, so a fork is a guaranteed win. Hold onto that word. It comes
+back as the hinge of the entire piece.
+
+Because we know how the opponent behaves, we can skip learning entirely and just
+compute the answer. The value of a position is the reward we are about to collect plus
+the value of wherever we land next, and if we assume we always play our best move from
+here on, that sentence becomes a recursion:
+
+$$ Q^*(s,a) = \mathbb{E}_{s'\sim P(\cdot\mid s,a)}\Big[\, r + \gamma \max_{a'} Q^*(s',a') \,\Big], \qquad V^*(s) = \max_a Q^*(s,a). $$
+
+Here $Q^*(s,a)$ is the value of playing move $a$ in position $s$ and then playing
+perfectly, and $V^*(s)$ is the value of the best move available. This is the Bellman
+equation, and for Tic-Tac-Toe you can evaluate it exactly: every move fills a square,
+so positions never repeat, and the recursion bottoms out. It tells us that the first
+player, against this opponent, can win about 93% of the time.
+
+That gives us a bar to clear. Two of them, really. The exact solver is the ceiling. And
+ordinary tabular Q-learning, which learns a value for each position from experience
+rather than computing it, gets essentially all the way there on its own.
+
+<WinRateBars
+  client:visible
+  title="The bar to clear"
+  subtitle="win / draw / loss against the blocking opponent, playing greedily"
+  rows={[
+    { label: 'Exact solver (the Bellman recursion above)', win: 94, draw: 5, loss: 1 },
+    { label: 'Tabular Q-learning (one number per position)', win: 92, draw: 8, loss: 0 },
+  ]}
+/>
+
+Sit with how modest that machinery is. Tabular Q-learning stores a single number for
+each of the roughly 1,590 positions it ever sees. No neural network, no gradients. It
+learns to win 92% of the time and to never lose, from nothing but the final score. If
+you want to beat this opponent, you are already done. Everything that follows is us
+asking a different question: not "can we win," but "what does a world model actually do
+when we make it try."
+
+## What a world model is, and what a JEPA adds
+
+Q-learning is what people call **model-free**. It never learns how the world works. It
+only learns, for each position, how good each move turned out to be. It is pure
+bookkeeping over experience.
+
+A **world model** takes the other road. Instead of memorizing outcomes, it tries to
+learn the dynamics of the world itself: given the current situation and an action, what
+happens next. Once you have that, you can plan. You can imagine playing a move and see
+where it leads, without actually playing it. This is the model-based idea, and it is
+why world models are appealing on hard problems: a good simulator you carry in your head
+lets you think ahead.
+
+A **JEPA**, short for Joint-Embedding Predictive Architecture, is a specific way to
+build that simulator, and its one distinctive commitment is worth understanding because
+it is the reason I chose it. A naive world model predicts the next raw observation: the
+next frame of pixels, the next board. That forces it to get every irrelevant detail
+right, every leaf and shadow and texture. A JEPA refuses to do that. It first encodes
+each observation into an abstract summary, a vector we will call the latent, and then it
+predicts the *next latent* rather than the next observation. For a real transition from
+state $s$ to state $s'$ under action $a$, it minimizes
+
+$$ \mathcal{L} = \underbrace{\big\lVert\, \mathrm{pred}(\mathrm{enc}(s), a) - \mathrm{enc}_{\text{tgt}}(s') \,\big\rVert^2}_{\text{predict the next latent}} \;+\; \lambda\, \underbrace{\mathcal{V}(\mathrm{enc}(s))}_{\text{keep the code alive}}. $$
+
+The point of predicting in latent space is that the encoder is free to throw away
+anything not worth predicting. If a detail is unpredictable noise, the encoder learns to
+drop it, because keeping it only makes the prediction loss worse. On messy, high-
+dimensional inputs this is a real advantage. It is how you turn a wall of pixels into a
+compact, useful state.
+
+And here is the tension that makes Tic-Tac-Toe such a revealing test. A JEPA's whole
+gift is discarding junk from a messy observation. But the Tic-Tac-Toe board has no junk.
+Nine cells, each empty, X, or O. That already *is* the state, exact and minimal, with
+nothing to abstract away. So we are running a method precisely in the regime where its
+main advantage is switched off, which means whatever value it shows must come from
+somewhere else. Watching where that value does and doesn't appear is the experiment.
+
+I built all of it in plain numpy: a small automatic-differentiation engine, the encoder
+and predictor networks, and the training loop. Nothing below is hidden inside a library
+I can wave at.
+
+## Does it learn the dynamics? Yes.
+
+Start with the most basic question. Can the world model actually predict what happens
+next? We train the encoder and predictor on real games, then test them on positions
+they were never trained on, and ask how close the predicted next latent is to the true
+one. It lands at $R^2 = 0.88$. We can also read off, from the imagined next latent alone,
+whether the game is about to end, and it gets that right 85% of the time against a 76%
+base rate. The simulator works. The machinery is sound. That matters, because it means
+anything that goes wrong later is not the model failing to learn. It is something else.
+
+There is one wrinkle worth pausing on, because it is a failure mode Q-learning simply
+cannot have. Look again at the loss. It rewards the predictor for guessing the next
+latent correctly. But there is a cheat: if the encoder maps *every* board to the same
+point, then the next latent is always that same point, and predicting it is trivial. The
+loss goes to zero and the model has learned nothing at all. This is called
+representation collapse, and the extra term $\mathcal{V}$ in the loss exists only to
+prevent it, by insisting the codes keep some spread. It is easiest to understand by
+watching it. Turn the anti-collapse term off and see what happens.
+
+<CollapseToggle client:visible />
+
+Notice the trap. With the regularizer off, the prediction loss reads *better* than with
+it on, because a constant is easy to predict, while the representation underneath has
+quietly died and become useless for anything. A loss curve that looks great as the model
+learns nothing. There is no analog of this in a lookup table. When you can store the
+true answer, it cannot silently rot.
+
+## Trying to play with it, and a failure worth understanding
+
+The world model can imagine the game. Now we want it to *play*. The natural move is to
+freeze the learned encoder, feed each position through it to get a latent, and put a
+small controller on top that reads the latent and picks a move.
+
+My first attempt used the simplest possible controller: a linear one. It reads the
+latent, computes a score for each move as a weighted sum, and plays the highest. It was
+a disaster. It won 18% of games, worse than where it started. If we stopped here, the
+obvious conclusion would be that the world model is worthless.
+
+That conclusion would be wrong, and understanding why is the most useful thing in this
+whole piece. The failure was not in the world model. It was in how we read from it.
+
+Think about what it takes to spot a fork. After you play a move, a fork means two
+different lines are each one step from winning, at the same time. That is a statement
+about a *combination* of conditions being true together. A linear controller cannot
+express "these two things hold simultaneously." A weighted sum of the cells can notice
+that one line is dangerous, but it cannot carve out the region of positions where two
+specific lines are both threats, because that is not a straight-line boundary through
+the space. It is the same reason a single linear unit cannot compute XOR. Detecting a
+fork is exactly the kind of "two things true together" that a linear model is blind to,
+and forks are the only way to win against this opponent.
+
+The fix, then, is not a better world model. It is a controller that can combine
+features. Give it one hidden layer and it can build intermediate detectors ("this line
+is a threat," "that line is a threat") and then react to their conjunction. Watch what
+happens as we grow the controller on top of the exact same frozen latent.
+
+<CapacitySweep client:visible />
+
+A linear head draws or loses. One hidden layer of moderate width climbs to 92%, dead
+level with the tabular table. Nothing about the world model changed between those two
+points. The only thing that changed was the controller's ability to represent a fork.
+The lesson generalizes past this game: when a system built on a learned representation
+underperforms, the representation is often fine and the readout is the bottleneck. It is
+worth checking which one is actually failing before blaming either.
+
+## The deflating part: you never needed the world model
+
+So a JEPA latent plus a nonlinear controller plays optimally. Before we celebrate, we
+have to run the control experiment that the scientific method demands. What happens if
+we throw the world model away entirely and put the same nonlinear controller directly on
+the raw nine-cell board?
+
+<WinRateBars
+  client:visible
+  title="The world model, removed"
+  subtitle="the same nonlinear controller, reading different inputs"
+  rows={[
+    { label: 'controller on the JEPA latent', win: 92, draw: 8, loss: 0, highlight: true },
+    { label: 'controller on the raw 9-cell board, no world model', win: 93, draw: 6, loss: 0 },
+    { label: 'linear controller on the JEPA latent (the earlier failure)', win: 36, draw: 24, loss: 40, note: "can't represent a fork" },
+  ]}
+/>
+
+They tie. A plain network reading nine integers plays just as well as the same network
+reading a carefully trained latent. This is the honest verdict on the world model as a
+way to play Tic-Tac-Toe: at its best it matches what you get for free, and the reason
+traces straight back to the tension we noted at the start. A learned representation earns
+its keep by turning a bad observation into a good state. The nine-cell board was already
+a good state. There was nothing for the encoder to add.
+
+I should mention one more cost before moving on, because it is real and it surprised me.
+When you replace the exact lookup table with any learned function of features and keep
+updating it by bootstrapping off its own estimates, you lose a guarantee. The table
+always converges. The function approximator can diverge, its weights running off toward
+infinity, a phenomenon known as the deadly triad. It is not a hypothetical here. With a
+normal learning rate it happens.
+
+<DeadlyTriad client:visible />
+
+## Maybe the payoff shows up when data is scarce
+
+At this point a reasonable person pushes back, and I did too. Of course the world model
+looks pointless when we can play unlimited games for free. Its real gift is supposed to
+be sample efficiency. You learn the dynamics once from cheap, unlabeled experience, and
+then you need only a handful of reward-labeled games to learn to act. So I built that
+regime directly. Pretrain the encoder on all the game transitions with no rewards at
+all, freeze it, and then let the controller learn from only a small number $K$ of
+positions where we reveal the correct values.
+
+If the pretrained latent were buying us anything, it would need far fewer labeled
+positions than a network learning from scratch. It doesn't.
+
+<div className="tablewrap">
+
+| labeled positions $K$ | plain network, from scratch | on the pretrained latent |
+|---:|:---:|:---:|
+| 40 | 46% win | 29% win |
+| 160 | 9% win | 24% win |
+| 640 | 54% win | 65% win |
+| everything | 94% win | 92% win |
+
+</div>
+
+The two columns wander around inside the noise and end up in the same place. Pretraining
+did not save labels, for the same reason it did not help before. When the raw
+observation is already a perfect state, there is no better representation waiting to be
+discovered by staring at more of it.
+
+So I tried to *manufacture* the conditions a JEPA is actually built for. I made the
+observation messy on purpose. Instead of the clean board, the agent now sees a
+64-number vector with the board smeared into it and a hundred extra dimensions of pure
+noise, re-randomized every time it looks. This is the setting where predicting the next
+latent should pay off, because the board is predictable and the noise is not, so a good
+encoder should learn to keep the board and discard the noise. A denoiser, learned for
+free from unlabeled looks.
+
+<div className="tablewrap">
+
+| labeled positions $K$ | plain network on the noisy view | JEPA-denoised latent |
+|---:|:---:|:---:|
+| 40 | 25% win | 24% win |
+| 160 | 32% win | 31% win |
+| everything | 33% win | 35% win |
+
+</div>
+
+A tie again, and now both are stuck around 33%. Two things went wrong, and both are
+instructive. First, my noisy view squeezed 127 numbers of board-plus-noise down into 64,
+which loses information, so no method can recover the board from a single look and no
+method can play well. Second, the way I mixed in the noise was linear, and a plain
+network learns to undo a linear mixing on its own, without any pretraining, so there was
+no gap left for the world model to fill. To actually see a JEPA win, you would need an
+observation that is lossless, scrambled in a genuinely nonlinear way, and hard enough to
+decode that unlabeled practice is what teaches you to see. That is a description of a
+real perception problem. Which is the quiet point of this whole section: to make the
+world model matter, you have to stop doing Tic-Tac-Toe.
+
+## The symmetry you keep hoping it will learn
+
+There is one more hope, and it is the one I held longest, because it feels like it
+*should* be true. Tic-Tac-Toe is drenched in symmetry. Rotate the board, reflect it, and
+it is the same game. In fact its 1,590 positions are only 218 genuinely different ones
+once you account for rotations and reflections. Everything else is a copy at a different
+angle. The tabular table is blind to this. It stores all 1,590 as if they were
+unrelated. Surely a learned encoder would notice, fold the copies together, and
+generalize across them?
+
+To answer this cleanly we have to be careful about a distinction that is easy to blur,
+so let me build it from the ground up. Take a real position and its exact best move, and
+start rotating.
+
+<SymmetryExplorer client:visible />
+
+Watch the two readouts as you rotate. The *value* never changes. Every rotation of a
+winning position is equally winning, worth $+1$. We say the value is **invariant** to the
+symmetry. But the *best move* does change. It rotates along with the board, because the
+winning square is a physical place, and when the board turns, that place turns with it.
+We say the policy is **equivariant**.
+
+That distinction is the whole answer. When I measured the plain JEPA's latent, symmetric
+positions were no closer together than random ones. It had not discovered the symmetry.
+Feeding it all eight rotations of every position as extra data barely moved the needle.
+And when I forced the issue, adding a term to the loss that explicitly pulls the code of
+a position toward the codes of its rotations, the symmetry appeared perfectly, every
+rotation collapsing onto one point. But the play got *worse*. Of course it did. I had
+made the encoder invariant, which throws away orientation, and orientation is exactly
+what the policy needs to name which square to play. I had forced the wrong symmetry.
+
+So what does the right one look like? Instead of demanding that a position and its
+rotation land on the same point, we can demand that they land in a fixed, orderly
+relationship. Pick a matrix $M_R$ for each rotation $R$ and ask the encoder to satisfy
+$\mathrm{enc}(Rs) = M_R\,\mathrm{enc}(s)$. Now the latent is not allowed to forget which
+way the board is facing. It has to store the orientation in a form that rotates
+predictably, like a compass needle that turns as the board turns. This is what
+equivariance means as a loss, and it is the symmetry the policy wanted all along.
+
+The nice thing about a problem this small is that we can train all three encoders, the
+plain one and the two with symmetry terms, and then look directly at the latent space
+each one learned. Below is exactly that. Every dot is one of the 1,590 positions, its
+code projected down to three dimensions so we can see it. Drag to turn the cloud, and
+switch between the three losses. The highlighted points are one board together with its
+eight rotations and reflections.
+
+<LatentOrbit client:visible />
+
+The three pictures are the argument in one place. With no symmetry term, the eight
+rotations scatter to unrelated corners of the space; the encoder never learned they were
+the same game. The invariance loss crushes all eight onto a single point, which is
+precisely why it destroyed play: a single point cannot tell you which way to move. The
+equivariance loss spreads them back out, but now onto a clean, regular orbit. The
+rotation that turns the board turns its code by a fixed amount, so every rotation is at
+once obviously related to the others and still distinct. That is what a usable symmetry
+looks like inside a network. And notice what it took to get there. We had to hand the
+encoder the group of rotations, as a set of matrices in the loss. It did not discover
+the structure on its own, because nothing in "predict the next latent" ever asked it to.
+
+Step back from the details and the real lesson is general, and it is bigger than any one
+architecture:
+
+> A network learns to generalize only along the lines you build into it, reward it for,
+> or show it in data. It does not invent a symmetry that its objective has no reason to
+> want.
+
+Neither "predict the next latent" nor "maximize your score" gets one bit easier if the
+encoder folds rotations together. Both objectives are perfectly satisfiable treating
+every rotation as its own separate thing. So there is no pressure pushing the network
+toward the symmetry, and it never arrives. This is not a flaw in JEPA. It is how
+learning works. Convolutional networks did not discover that images are
+translation-symmetric; that fact was wired into them by hand, through weight sharing.
+Rotation-equivariant networks bake in rotation on purpose. Whenever a model exploits a
+symmetry, someone put that symmetry there, in the architecture, the loss, or the data.
+You do not get it for free by hoping.
+
+## When a world model is actually worth it
+
+Pulling it together. On Tic-Tac-Toe, a JEPA world model is not the way to play. At its
+best it ties a table of numbers you could print on a page, and it charges you an encoder,
+a predictor, a delicate anti-collapse term, and a controller for the privilege, plus new
+ways to fail that the table never had. Its signature strength, cleaning up a messy
+observation, is dead weight when the observation is already clean.
+
+But as a way to *understand*, it was worth every minute, precisely because the answer was
+knowable. We got to watch a simulator learn real dynamics, watch a representation die
+under a loss that looked healthy, watch a value function diverge, and watch, in slow
+motion, the difference between a symmetry of value and a symmetry of action. A lookup
+table is too simple to ever show you any of that.
+
+And the exercise draws a clean map of when the machinery earns its keep. A world model
+pays off when the observation is a mess you have to see through, when the dynamics are
+unknown, when reward is expensive, and when horizons are long enough that planning ahead
+matters. Cameras, robots, video. Tic-Tac-Toe has none of those properties, which is
+exactly why it makes such a clear window into what the method is doing when its usual
+excuses are stripped away. Know the rules? Solve them directly. Don't know them, but the
+state is handed to you? Reach for Q-learning. Save the world model for the day your state
+arrives as a wall of pixels rather than nine plain integers.
+
+<hr />
+
+<p className="essay-note">
+Everything here was built from scratch in numpy and checked against an exact solver: the
+autodiff engine, the JEPA encoder and predictor, the capacity study, the collapse
+ablation, and the two experiments that came up empty. Numbers are representative and
+shift a little with the random seed.
+</p>

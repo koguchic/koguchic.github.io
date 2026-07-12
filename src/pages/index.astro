@@ -6,6 +6,15 @@ const posts = (await getCollection('blog'))
   .filter((p) => !p.data.draft)
   .sort((a, b) => b.data.pubDate.getTime() - a.data.pubDate.getTime());
 
+// Section order + copy. New kinds slot in here.
+const SECTIONS = [
+  { kind: 'essay', label: 'Essays', blurb: 'Deep-dives and interactive write-ups.' },
+  { kind: 'reading-list', label: 'Reading maps', blurb: 'Curated, trackable paths through a literature.' },
+  { kind: 'project', label: 'Projects', blurb: 'Experiments and things I built.' },
+] as const;
+
+const allTags = [...new Set(posts.flatMap((p) => p.data.tags))].sort();
+
 const fmt = (d: Date) =>
   d.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 ---
@@ -22,22 +31,85 @@ const fmt = (d: Date) =>
       </p>
     </section>
 
-    <section class="posts">
-      <div class="posts__label">Writing · {posts.length} {posts.length === 1 ? 'post' : 'posts'}</div>
+    <div class="filter-bar" role="group" aria-label="Filter by topic">
+      <button class="filter-chip" data-tag-chip="all" aria-pressed="true">All</button>
       {
-        posts.map((post) => (
-          <a class="post-card" href={`/blog/${post.id}/`}>
-            <div class="post-card__date">{fmt(post.data.pubDate)}</div>
-            <h2 class="post-card__title">{post.data.title}</h2>
-            <p class="post-card__desc">{post.data.description}</p>
-            <div class="tag-row">
-              {post.data.tags.map((tag) => (
-                <span class="tag">{tag}</span>
-              ))}
-            </div>
-          </a>
+        allTags.map((tag) => (
+          <button class="filter-chip" data-tag-chip={tag} aria-pressed="false">
+            #{tag}
+          </button>
         ))
       }
-    </section>
+    </div>
+
+    <div class="hub">
+      {
+        SECTIONS.map(({ kind, label, blurb }) => {
+          const items = posts.filter((p) => p.data.kind === kind);
+          return (
+            <section class="hub-section" data-section={kind}>
+              <div class="section-head">
+                <h2 class="section-label">{label}</h2>
+                <span class="section-blurb">{blurb}</span>
+              </div>
+              {items.length === 0 ? (
+                <p class="section-empty">As they come.</p>
+              ) : (
+                items.map((post) => (
+                  <a
+                    class="post-card"
+                    href={`/blog/${post.id}/`}
+                    data-tags={post.data.tags.join(' ')}
+                  >
+                    <div class="post-card__date">{fmt(post.data.pubDate)}</div>
+                    <h3 class="post-card__title">{post.data.title}</h3>
+                    <p class="post-card__desc">{post.data.description}</p>
+                    <div class="tag-row">
+                      {post.data.tags.map((tag) => (
+                        <span class="tag">{tag}</span>
+                      ))}
+                    </div>
+                  </a>
+                ))
+              )}
+            </section>
+          );
+        })
+      }
+    </div>
   </div>
+
+  <script>
+    const chips = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-tag-chip]'));
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('.post-card[data-tags]'));
+    const sections = Array.from(document.querySelectorAll<HTMLElement>('[data-section]'));
+    let active = 'all';
+
+    function apply() {
+      cards.forEach((card) => {
+        const tags = (card.dataset.tags || '').split(' ');
+        card.hidden = !(active === 'all' || tags.includes(active));
+      });
+      sections.forEach((section) => {
+        const owned = section.querySelectorAll<HTMLElement>('.post-card[data-tags]');
+        if (owned.length === 0) {
+          // Placeholder section (e.g. Projects): only visible in the unfiltered view.
+          section.hidden = active !== 'all';
+        } else {
+          const visible = Array.from(owned).filter((c) => !c.hidden).length;
+          section.hidden = visible === 0;
+        }
+      });
+      chips.forEach((chip) => {
+        chip.setAttribute('aria-pressed', String(chip.dataset.tagChip === active));
+      });
+    }
+
+    chips.forEach((chip) => {
+      chip.addEventListener('click', () => {
+        active = chip.dataset.tagChip || 'all';
+        apply();
+      });
+    });
+  </script>
 </BaseLayout>

@@ -352,3 +352,82 @@ a:hover { text-decoration: underline; }
   .rt-group__tally { display: none; }
   .rt-bar { top: 53px; }
 }
+
+/* ============================================================
+   Home hub — filter bar + kind sections
+   ============================================================ */
+.filter-bar { display: flex; flex-wrap: wrap; gap: 8px; margin: 32px 0 8px; }
+.filter-chip {
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.02em;
+  color: var(--muted); background: transparent; border: 1px solid var(--line-strong);
+  border-radius: 999px; padding: 5px 12px; cursor: pointer; transition: all 0.15s ease;
+}
+.filter-chip:hover { color: var(--ink); border-color: var(--faint); }
+.filter-chip[aria-pressed="true"] {
+  color: var(--accent-ink); border-color: var(--accent); background: var(--accent-soft);
+}
+.hub { padding: 8px 0 80px; }
+.hub-section { margin-top: 40px; }
+.hub-section[hidden] { display: none; }
+.section-head {
+  display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap;
+  padding-bottom: 12px; margin-bottom: 4px; border-bottom: 2px solid var(--line-strong);
+}
+.section-label {
+  font-family: var(--font-mono); font-size: 13px; font-weight: 700; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink); margin: 0;
+}
+.section-blurb { font-family: var(--font-sans); font-size: 13.5px; color: var(--muted); }
+.section-empty { font-family: var(--font-mono); font-size: 13px; color: var(--faint); padding: 18px 0; }
+/* .post-card sets display:block, so the [hidden] UA rule must be re-asserted. */
+.post-card[hidden] { display: none; }
+
+/* ============================================================
+   Compatibility tokens + utilities for migrated interactive essays.
+   The viz components were authored against jepa-blog's token names;
+   alias them onto this site's palette so nothing renders unstyled.
+   (Aliases to theme vars are late-bound, so they adapt automatically;
+   only the new semantic colors need per-theme values.)
+   ============================================================ */
+:root {
+  --sans: var(--font-sans);
+  --mono: var(--font-mono);
+  --fg: var(--ink);
+  --fg-soft: var(--ink-soft);
+  --panel: var(--surface);
+  --bg-soft: var(--surface-2);
+  --border: var(--line);
+  /* --muted and --accent already exist in the core palette */
+  --accent-2: #c0552a;
+  --good: #2f855a;
+  --bad: #c53030;
+  --draw: #b7791f;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --accent-2: #e08a5a; --good: #68d391; --bad: #fc8181; --draw: #ecc94b; }
+}
+:root[data-theme="light"] { --accent-2: #c0552a; --good: #2f855a; --bad: #c53030; --draw: #b7791f; }
+:root[data-theme="dark"]  { --accent-2: #e08a5a; --good: #68d391; --bad: #fc8181; --draw: #ecc94b; }
+
+.fig {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 14px;
+  padding: 1.15rem 1.25rem; box-shadow: var(--shadow); margin: 2rem 0;
+}
+.fig-title { font-family: var(--font-sans); font-weight: 640; font-size: 0.95rem; margin: 0 0 0.1rem; color: var(--ink); }
+.fig-sub { font-family: var(--font-sans); font-size: 0.8rem; color: var(--muted); margin: 0 0 1rem; }
+.callout {
+  border: 1px solid var(--line); border-left: 3px solid var(--accent-2);
+  background: var(--surface-2); border-radius: 0 10px 10px 0;
+  padding: 0.1em 1.1em; margin: 1.6em 0; font-size: 0.96em;
+}
+.essay-note { font-family: var(--font-sans); font-size: 0.85rem; color: var(--muted); line-height: 1.6; }
+.mono { font-family: var(--font-mono); }
+.sans { font-family: var(--font-sans); }
+.nowrap { white-space: nowrap; }
+.tablewrap { overflow-x: auto; margin: 1.5em 0; }
+
+/* Tables inside prose (the migrated essay uses several) */
+.prose table { border-collapse: collapse; width: 100%; font-family: var(--font-sans); font-size: 0.85rem; }
+.prose th, .prose td { text-align: left; padding: 0.5em 0.7em; border-bottom: 1px solid var(--line); }
+.prose th { font-weight: 600; color: var(--ink-soft); border-bottom: 2px solid var(--line-strong); }
+.prose tbody tr:hover { background: var(--surface-2); }

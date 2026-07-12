@@ -8,6 +8,8 @@ const blog = defineCollection({
     title: z.string(),
     description: z.string(),
     pubDate: z.coerce.date(),
+    // `kind` drives the sectioned home page: Essays / Reading maps / Projects.
+    kind: z.enum(['essay', 'reading-list', 'project']).default('essay'),
     tags: z.array(z.string()).default([]),
     draft: z.boolean().default(false),
   }),
